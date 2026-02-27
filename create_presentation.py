@@ -389,8 +389,77 @@ def slide_6_evaluation(prs: Presentation) -> None:
              color=verdict_colors[i])
 
 
-def slide_7_governance(prs: Presentation) -> None:
-    """Slide 7 — Risks & Governance"""
+def slide_7_deployment(prs: Presentation) -> None:
+    """Slide 7 — Deployment & Live Demo"""
+    sl = _add_slide(prs)
+    _bg(sl, WHITE)
+    _rect(sl, 0, 0, 10, 0.5, BNR_BLUE)
+    _box(sl, 0.2, 0.05, 9.6, 0.4, "Deployment & Live Demo",
+         font_size=22, bold=True, color=WHITE)
+
+    # Live URL highlight box
+    _rect(sl, 0.3, 0.65, 9.4, 0.9, RGBColor(0x0F, 0x28, 0x6B))
+    _box(sl, 0.4, 0.68, 9.2, 0.35,
+         "LIVE APPLICATION URL",
+         font_size=12, bold=True, color=RGBColor(0xAA, 0xBB, 0xDD),
+         align=PP_ALIGN.CENTER)
+    _box(sl, 0.4, 0.95, 9.2, 0.40,
+         "https://huggingface.co/spaces/geredi/BNR-Document-Intelligence",
+         font_size=15, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+
+    # Left panel — deployment stack
+    _rect(sl, 0.3, 1.72, 4.5, 4.0, LIGHT_GREY)
+    _rect(sl, 0.3, 1.72, 4.5, 0.38, BNR_BLUE)
+    _box(sl, 0.35, 1.75, 4.4, 0.35, "DEPLOYMENT STACK",
+         font_size=13, bold=True, color=WHITE)
+    _bullets(sl, 0.4, 2.18, 4.3, 3.4, [
+        "Platform:  Hugging Face Spaces",
+        "  Free tier  ·  16 GB RAM  ·  2 vCPU",
+        "",
+        "Runtime:  Docker (python:3.11-slim)",
+        "  Streamlit on port 7860",
+        "  Auto-rebuild on every git push",
+        "",
+        "Vector DB:  ChromaDB EphemeralClient",
+        "  In-memory, rebuilt on cold start",
+        "  ~20-30 s first load, then fast",
+        "",
+        "Binary files:  Git LFS",
+        "  PDFs tracked via Large File Storage",
+        "  Required by HF Hub for files > 10 MB",
+    ], font_size=12, color=DARK_GREY, bold_first=False)
+
+    # Right panel — full journey
+    _rect(sl, 5.2, 1.72, 4.5, 4.0, LIGHT_GREY)
+    _rect(sl, 5.2, 1.72, 4.5, 0.38, ACCENT)
+    _box(sl, 5.25, 1.75, 4.4, 0.35, "PROJECT JOURNEY",
+         font_size=13, bold=True, color=WHITE)
+    _bullets(sl, 5.3, 2.18, 4.3, 3.4, [
+        "1.  Challenge brief received (BNR)",
+        "2.  Corpus documents collected (4)",
+        "3.  RAG pipeline built from scratch",
+        "     ingestion → retrieval → generation",
+        "4.  Streamlit UI developed (app.py)",
+        "5.  Evaluation suite run (5 questions)",
+        "6.  Results analysed, failures logged",
+        "7.  Git LFS set up for PDF storage",
+        "8.  Deployed to HF Spaces via Docker",
+        "9.  Secrets configured (API key safe)",
+        "10. Live & accessible 24/7",
+    ], font_size=12, color=DARK_GREY, bold_first=False)
+
+    # Footer — github + secrets note
+    _rect(sl, 0.3, 5.88, 9.4, 0.55, RGBColor(0xE8, 0xF0, 0xFF))
+    _box(sl, 0.4, 5.92, 5.5, 0.45,
+         "Source code:  https://github.com/GerediNIYIBIGIRA/BNR-DS-Challenge",
+         font_size=12, color=BNR_BLUE)
+    _box(sl, 6.0, 5.92, 3.5, 0.45,
+         "API key stored as HF Secret (never in code)",
+         font_size=12, color=GREEN)
+
+
+def slide_8_governance(prs: Presentation) -> None:
+    """Slide 8 — Risks & Governance"""
     sl = _add_slide(prs)
     _bg(sl, WHITE)
     _rect(sl, 0, 0, 10, 0.5, BNR_BLUE)
@@ -459,9 +528,10 @@ def main() -> None:
     slide_4_retrieval(prs)
     slide_5_outputs(prs)
     slide_6_evaluation(prs)
-    slide_7_governance(prs)
+    slide_7_deployment(prs)
+    slide_8_governance(prs)
 
-    out = Path(__file__).parent / "BNR_RAG_Presentation_v2.pptx"
+    out = Path(__file__).parent / "BNR_RAG_Presentation_Final.pptx"
     prs.save(str(out))
     print(f"Saved → {out}")
 
