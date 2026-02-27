@@ -1,3 +1,13 @@
+---
+title: BNR Document Intelligence Assistant
+emoji: 🏦
+colorFrom: blue
+colorTo: indigo
+sdk: streamlit
+sdk_version: 1.40.0
+app_file: app.py
+pinned: false
+---
 # BNR Document Intelligence — RAG Prototype
 
 A Retrieval-Augmented Generation (RAG) system for querying the BNR institutional
