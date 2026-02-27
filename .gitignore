@@ -1,0 +1,17 @@
+# secrets — never commit
+.env
+.streamlit/secrets.toml
+
+# generated at runtime
+chroma_db/
+logs/
+evaluation/eval_report_*.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.DS_Store
+~$*.pptx
+~$*.pptx
