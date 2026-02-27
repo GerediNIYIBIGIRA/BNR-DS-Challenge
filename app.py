@@ -162,18 +162,19 @@ def main() -> None:
         if col.button(q[:38] + "…", use_container_width=True, help=q):
             clicked = q
 
+    # Write to session state BEFORE the widget renders so it picks up the value
+    if clicked:
+        st.session_state["question_input"] = clicked
+
     # ── Query input ───────────────────────────────────────────────────────────
     st.markdown("#### Or type your own question")
     question = st.text_area(
         label="Question",
         label_visibility="collapsed",
-        value=clicked or st.session_state.get("last_question", ""),
         height=90,
         placeholder="Type your question here …",
         key="question_input",
     )
-    if clicked:
-        st.session_state["last_question"] = clicked
 
     run = st.button("Search & Answer", type="primary", disabled=not question.strip())
 
