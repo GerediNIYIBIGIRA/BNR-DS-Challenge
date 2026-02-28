@@ -13,9 +13,12 @@ __pycache__/
 .venv/
 *.egg-info/
 .DS_Store
+
+# ignore all PowerPoint files
+*.pptx
+
+# but KEEP the final submission presentation
+!BNR-DS-Challenge-Geredi-Niyibigira.pptx
+
+# office temp files
 ~$*.pptx
-~$*.pptx
-./create_presentation.py
-./BNR_RAG_Presentation_v2.pptx
-./BNR_RAG_System_Presentation.pptx
-./BNR_RAG_Presentation_Final.pptx
