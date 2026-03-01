@@ -1,12 +1,14 @@
-"""Vector-store retrieval using ChromaDB + sentence-transformers."""
+"""Vector-store retrieval using FAISS + sentence-transformers."""
 from __future__ import annotations
 
 import logging
+import pickle
 from pathlib import Path
 from typing import NamedTuple
 
-import chromadb
-from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
 
 from . import config
 from .ingestion import DocumentChunk
@@ -33,7 +35,7 @@ class RetrievedChunk(NamedTuple):
 # ── Retriever ─────────────────────────────────────────────────────────────────
 
 class RAGRetriever:
-    """Persistent ChromaDB-backed semantic retriever."""
+    """FAISS-backed semantic retriever (exact cosine similarity)."""
 
     def __init__(
         self,
@@ -43,100 +45,116 @@ class RAGRetriever:
     ) -> None:
         self.db_path         = Path(db_path)
         self.collection_name = collection_name
+        self._persistent     = not config.USE_EPHEMERAL_DB
+
+        self._index_path = self.db_path / f"{collection_name}.faiss"
+        self._meta_path  = self.db_path / f"{collection_name}.pkl"
 
         logger.info(f"Loading embedding model '{embedding_model}' ...")
-        self._embed_fn = SentenceTransformerEmbeddingFunction(
-            model_name=embedding_model,
-            device="cpu",
-        )
+        self._model = SentenceTransformer(embedding_model, device="cpu")
 
-        # Use ephemeral (in-memory) client for cloud deployments where the
-        # filesystem is not persistent (HF Spaces, Streamlit Cloud, etc.).
-        if config.USE_EPHEMERAL_DB:
-            self._client = chromadb.EphemeralClient()
-            logger.info("ChromaDB: ephemeral (in-memory) mode")
+        self._index:    faiss.Index | None = None
+        self._texts:    list[str]          = []
+        self._metadata: list[dict]         = []
+
+        # Load persisted index if available
+        if self._persistent and self._index_path.exists() and self._meta_path.exists():
+            self._load()
+            logger.info(f"Loaded existing index: {self.chunk_count} chunks.")
         else:
-            self._client = chromadb.PersistentClient(path=str(self.db_path))
+            logger.info("No existing index found — will build on first use.")
 
-        self._col = self._client.get_or_create_collection(
-            name=collection_name,
-            embedding_function=self._embed_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
-        logger.info(f"Collection '{collection_name}' — {self._col.count()} chunks indexed.")
+    # ── Persistence ───────────────────────────────────────────────────────────
+
+    def _load(self) -> None:
+        self._index = faiss.read_index(str(self._index_path))
+        with open(self._meta_path, "rb") as f:
+            data = pickle.load(f)
+        self._texts    = data["texts"]
+        self._metadata = data["metadata"]
+
+    def _save(self) -> None:
+        if not self._persistent or self._index is None:
+            return
+        self.db_path.mkdir(exist_ok=True)
+        faiss.write_index(self._index, str(self._index_path))
+        with open(self._meta_path, "wb") as f:
+            pickle.dump({"texts": self._texts, "metadata": self._metadata}, f)
 
     # ── Properties ────────────────────────────────────────────────────────────
 
     @property
     def is_empty(self) -> bool:
-        return self._col.count() == 0
+        return self._index is None or self._index.ntotal == 0
 
     @property
     def chunk_count(self) -> int:
-        return self._col.count()
+        return 0 if self._index is None else self._index.ntotal
 
     # ── Indexing ──────────────────────────────────────────────────────────────
 
-    def index_documents(self, chunks: list[DocumentChunk], batch_size: int = 128) -> None:
-        """(Re)index *chunks* into ChromaDB."""
+    def index_documents(self, chunks: list[DocumentChunk], batch_size: int = 64) -> None:
+        """Encode *chunks* and build a cosine-similarity FAISS index."""
         logger.info(f"Indexing {len(chunks)} chunks …")
 
-        # Drop and recreate collection for a clean rebuild
-        self._client.delete_collection(self.collection_name)
-        self._col = self._client.create_collection(
-            name=self.collection_name,
-            embedding_function=self._embed_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
+        texts = [c.text for c in chunks]
 
-        for start in range(0, len(chunks), batch_size):
-            batch = chunks[start : start + batch_size]
-            self._col.add(
-                ids       = [c.chunk_id for c in batch],
-                documents = [c.text for c in batch],
-                metadatas = [
-                    {
-                        "source_name": c.source_name,
-                        "filename":    c.filename,
-                        "page":        c.page,
-                        "doc_type":    c.doc_type,
-                    }
-                    for c in batch
-                ],
-            )
+        all_emb: list[np.ndarray] = []
+        for start in range(0, len(texts), batch_size):
+            batch_texts = texts[start : start + batch_size]
+            emb = self._model.encode(batch_texts, show_progress_bar=False)
+            all_emb.append(emb)
             logger.info(
-                f"  Indexed {min(start + batch_size, len(chunks))}/{len(chunks)} chunks"
+                f"  Encoded {min(start + batch_size, len(texts))}/{len(texts)} chunks"
             )
 
-        logger.info(f"Indexing complete — {self._col.count()} total chunks.")
+        embeddings = np.vstack(all_emb).astype("float32")
+        faiss.normalize_L2(embeddings)          # cosine ≡ inner product after normalising
+
+        dim = embeddings.shape[1]
+        self._index = faiss.IndexFlatIP(dim)    # exact cosine search
+        self._index.add(embeddings)
+
+        self._texts = texts
+        self._metadata = [
+            {
+                "source_name": c.source_name,
+                "filename":    c.filename,
+                "page":        c.page,
+                "doc_type":    c.doc_type,
+            }
+            for c in chunks
+        ]
+
+        self._save()
+        logger.info(f"Indexing complete — {self.chunk_count} total chunks.")
 
     # ── Querying ──────────────────────────────────────────────────────────────
 
     def retrieve(self, query: str, k: int = config.TOP_K) -> list[RetrievedChunk]:
         """Return the *k* most semantically similar chunks for *query*."""
-        n = min(k, self._col.count())
-        if n == 0:
+        if self.is_empty:
             return []
 
-        results = self._col.query(
-            query_texts=[query],
-            n_results=n,
-            include=["documents", "metadatas", "distances"],
-        )
+        n = min(k, self.chunk_count)
 
-        chunks = []
-        for text, meta, dist in zip(
-            results["documents"][0],
-            results["metadatas"][0],
-            results["distances"][0],
-        ):
-            chunks.append(RetrievedChunk(
-                text        = text,
+        q_emb = self._model.encode([query]).astype("float32")
+        faiss.normalize_L2(q_emb)
+
+        scores, indices = self._index.search(q_emb, n)
+
+        results = []
+        for score, idx in zip(scores[0], indices[0]):
+            if idx < 0:
+                continue
+            meta = self._metadata[idx]
+            results.append(RetrievedChunk(
+                text        = self._texts[idx],
                 source_name = meta.get("source_name", "Unknown"),
                 filename    = meta.get("filename", ""),
                 page        = meta.get("page", 0),
                 doc_type    = meta.get("doc_type", "pdf"),
-                similarity  = round(1.0 - float(dist), 4),  # distance → similarity
+                similarity  = round(float(score), 4),   # cosine similarity
             ))
 
-        return chunks
+        return results

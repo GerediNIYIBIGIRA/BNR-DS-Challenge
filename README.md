@@ -1,6 +1,5 @@
 ---
 title: BNR Document Intelligence Assistant
-emoji: 🏦
 colorFrom: blue
 colorTo: indigo
 sdk: docker
@@ -25,7 +24,7 @@ User Question
 [Embedding Model]        ← sentence-transformers/all-MiniLM-L6-v2 (local)
      │
      ▼
-[ChromaDB Vector Store]  ← cosine similarity, persistent on disk
+[FAISS Vector Index]     ← cosine similarity (IndexFlatIP), persistent on disk
      │  top-k chunks
      ▼
 [Claude LLM]             ← Anthropic API, strict grounding system prompt
@@ -39,9 +38,9 @@ Grounded Answer + Citations + Audit Log
 | Component | Choice | Reason |
 |-----------|--------|--------|
 | Embeddings | `all-MiniLM-L6-v2` (local) | No API cost; data stays on-premises |
-| Vector store | ChromaDB (persistent) | Simple, reliable, stores metadata |
+| Vector store | FAISS `IndexFlatIP` (persistent) | Stable, no native-binary issues; exact cosine search |
 | Chunking | 600-word windows, 100-word overlap | Balances context completeness vs noise |
-| LLM | Claude 3.5 Haiku | Fast, cost-effective, instruction-following |
+| LLM | Claude Haiku | Fast, cost-effective, instruction-following |
 | Fallback | Hardcoded exact string | Prevents hallucination on out-of-corpus questions |
 
 ---
@@ -138,13 +137,13 @@ BNR-DS-Challenge-Geredi-Niyibigira/
 ├── src/
 │   ├── config.py                ← all configuration constants
 │   ├── ingestion.py             ← PDF/CSV loading and chunking
-│   ├── retriever.py             ← ChromaDB vector store + retrieval
+│   ├── retriever.py             ← FAISS vector index + retrieval
 │   ├── generator.py             ← Claude API answer generation
 │   ├── rag_pipeline.py          ← end-to-end orchestration
 │   └── audit_logger.py          ← JSON-lines query audit trail
 ├── evaluation/
 │   └── run_evaluation.py        ← evaluation harness (5 questions)
-├── chroma_db/                   ← persisted vector index (auto-created)
+├── chroma_db/                   ← persisted FAISS index files (auto-created)
 ├── logs/
 │   └── audit.jsonl              ← query audit trail (auto-created)
 ├── main.py                      ← CLI entry point

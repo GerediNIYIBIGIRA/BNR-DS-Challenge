@@ -99,9 +99,9 @@ def run_evaluation(pipeline) -> list[dict]:
     print("=" * 72)
 
     for q in QUESTIONS:
-        print(f"\n{'─'*72}")
+        print(f"\n{'-'*72}")
         print(f"[{q['id']}] {q['question']}")
-        print(f"{'─'*72}")
+        print(f"{'-'*72}")
 
         result = pipeline.query(q["question"])
 
@@ -110,7 +110,7 @@ def run_evaluation(pipeline) -> list[dict]:
         print("RETRIEVED CONTEXT:")
         for chunk in result["context_used"]:
             print(
-                f"  • {chunk.source_name:45s} | "
+                f"  - {chunk.source_name:45s} | "
                 f"Page {str(chunk.page):4s} | "
                 f"sim={chunk.similarity:.3f}"
             )
@@ -122,15 +122,15 @@ def run_evaluation(pipeline) -> list[dict]:
 
         if q["out_of_corpus"]:
             passed = gave_fallback
-            verdict = "PASS ✓" if passed else "FAIL ✗  (should have given fallback)"
+            verdict = "PASS" if passed else "FAIL  (should have given fallback)"
         else:
             # Check at least one expected source is among top-retrieved
             retrieved_names = {c.source_name for c in result["context_used"]}
             source_hit = any(s in retrieved_names for s in q["expected_sources"])
             passed = source_hit and not gave_fallback
             verdict = (
-                "PASS ✓" if passed
-                else "PARTIAL/FAIL — check commentary above"
+                "PASS" if passed
+                else "PARTIAL/FAIL - check commentary above"
             )
 
         print(f"VERDICT: {verdict}")
@@ -165,7 +165,7 @@ def run_evaluation(pipeline) -> list[dict]:
     print(f"\n{'='*72}")
     print(f"SUMMARY: {n_pass}/{len(records)} questions passed")
     for r in records:
-        icon = "✓" if r["passed"] else "✗"
+        icon = "[PASS]" if r["passed"] else "[FAIL]"
         print(f"  {icon} [{r['id']}] {r['question'][:60]}")
     print("=" * 72)
 
@@ -196,7 +196,7 @@ def main() -> None:
     out_file = out_dir / f"eval_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(out_file, "w", encoding="utf-8") as fh:
         json.dump(records, fh, indent=2, ensure_ascii=False)
-    print(f"\nReport saved → {out_file}")
+    print(f"\nReport saved -> {out_file}")
 
 
 if __name__ == "__main__":
